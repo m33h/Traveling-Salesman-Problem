@@ -13,30 +13,13 @@ require 'pry'
 #
 
 class CitiesCollection
-  N = 5
+  N = 100
 
   def initialize
     @population = create_population
     @new_population = []
     @costs = create_costs
     @travarsing_costs_history = []
-  end
-
-  def present_population
-    puts 'cities'
-    population.each_with_index do |individual, index|
-      puts "#{index}: #{individual}"
-    end
-    puts separator
-  end
-
-  def present_population_with_costs
-    puts 'individuals with costs'
-    population.each do |individual|
-      # binding.pry
-      puts "#{individual}, costs: #{calculate_cost(individual)}"
-    end
-    puts separator
   end
 
   def find_traversing_order_for(individual_index)
@@ -50,19 +33,29 @@ class CitiesCollection
     order.flatten
   end
 
-  def present_traversing_paths
-    puts 'traversing orders'
-    (0...N).each{ |city| print find_traversing_order_for(city); puts ' cost: ' + calculate_cost(find_traversing_order_for(city)).to_s }
-    puts separator
-  end
-
   def calculate_cost(cities_array)
     cities_array.each_with_index.map{|i,index| cities_array[index+1] ? [i, cities_array[index+1]] : [i, cities_array[0]]}.map{|i,j| costs[i][j]}.sum
   end
 
+  def make_generations(generations_count = 100)
+    puts 'starting generation:'
+    present_population_with_costs
+
+    generations_count.times do
+      cross
+      mutation(mutation_rate: 0.05)
+      tournament_selection
+    end
+
+    puts 'last generation:'
+    present_population_with_costs
+
+    puts 'results:'
+    present_results
+  end
+
   def cross
     cities_pairs = population.in_groups_of(2).map(&:compact)
-    # binding.pry
     new_population = []
     cities_pairs.each do |cities_pair|
       new_population << single_point_cross(cities_pair).flatten
@@ -80,6 +73,16 @@ class CitiesCollection
     @new_population << city_d
   end
 
+  def mutation(mutation_rate: 0.1)
+    genotypes_to_change = (N * N * mutation_rate).to_i
+    genotypes_to_change.times do
+      selected_population = [population, new_population][rand(2)]
+      individual = rand(100)
+      genotype = rand(100)
+      selected_population[individual][genotype] = rand(N)
+    end
+  end
+
   def tournament_selection
     cities_pairs = (@new_population + @population).shuffle.in_groups_of(2).map(&:compact)
     winning_cities = []
@@ -87,26 +90,49 @@ class CitiesCollection
       if cities_pair.length == 1
         winning_cities << cities_pair.first
       else
-        # binding.pry
         best_candidate = (calculate_cost(cities_pair.first) < calculate_cost(cities_pair.last)) ? cities_pair.first : cities_pair.last
         winning_cities << best_candidate
       end
     end
 
-    # cities_pair.compact.each do |pair|
-    #   winning_individual = (calculate_cost(pair[0]) < calculate_cost(pair[1])) ? pair[0] : pair[1]
-    # end
     @population = winning_cities
     @new_population = []
   end
 
-  private
-  attr_reader :population, :costs, :new_population
+  def present_population
+    puts 'cities'
+    population.each_with_index do |individual, index|
+      puts "#{index}: #{individual}"
+    end
+  end
 
-  # def change_base(number, base = 2, string_length = 8)
-  #   changed_base = number.to_s(base)
-  #   "0" * (string_length - changed_base.length) + changed_base
-  # end
+  def present_population_with_costs
+    costs = []
+    orders = []
+    puts 'individuals with costs'
+    population.each_with_index do |individual, index|
+      cost = calculate_cost(individual)
+      order = find_traversing_order_for(index)
+      costs << cost
+      orders << order
+      travarsing_costs_history << costs.min
+    end
+
+    best_order_index = costs.each_with_index.select{ |cost, index| cost == costs.min }.flatten.last
+    puts 'the lower traversing cost:' + costs.min.to_s + "(#{orders[best_order_index]})"
+  end
+
+  def present_cost_table
+    puts costs.to_s
+  end
+
+  def present_results
+    puts 'lowest cost changes:' + travarsing_costs_history.uniq.to_s
+    puts "#{(100 * (travarsing_costs_history.max - travarsing_costs_history.min) / travarsing_costs_history.max.to_f).round(2)}% better result"
+  end
+
+  private
+  attr_reader :population, :costs, :new_population, :travarsing_costs_history
 
   def create_population
     [].tap do |array|
@@ -137,41 +163,7 @@ class CitiesCollection
 
     costs
   end
-
-  def travelling_cost(i,j)
-    i == j ? 10_000 : rand(5 * N)
-  end
-
-  def separator
-    "\n\n\n"
-  end
 end
 
 cities = CitiesCollection.new
-cities.present_population_with_costs
-puts cities.send(:costs).to_s
-
-cities.cross
-cities.tournament_selection
-cities.present_population_with_costs
-
-# cities.present_traversing_paths
-cities.cross
-cities.tournament_selection
-cities.present_population_with_costs
-
-cities.cross
-cities.tournament_selection
-cities.present_population_with_costs
-
-cities.cross
-cities.tournament_selection
-cities.present_population_with_costs
-
-cities.cross
-cities.tournament_selection
-cities.present_population_with_costs
-
-cities.cross
-cities.tournament_selection
-cities.present_population_with_costs
+cities.make_generations
