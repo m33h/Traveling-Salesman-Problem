@@ -12,10 +12,21 @@ require 'pry'
 #
 #
 
-class CitiesCollection
+class TravellingSalesmanProblem
   N = 100
+  MUTATION_RATE = 0.05
+  GENERATIONS_COUNT = 100
+  DEFAULT_CROSS_STRATEGY = :single_point_cross
+  AVAILABLE_CROSS_STRATEGIES = [:single_point_cross]
 
   def initialize
+    params = ARGV.in_groups_of(2).to_h
+    @number_of_cities = Integer(params.dig('-n') || N)
+    @mutation_rate = params.dig('-m').to_f || MUTATION_RATE
+    @present_costs = ARGV.include?('-c') || false
+    @generations_count = Integer(params.dig('-g') || GENERATIONS_COUNT)
+    @cross_strategy_method = AVAILABLE_CROSS_STRATEGIES.include?(params.dig('-s')) ? params.dig('-s') : DEFAULT_CROSS_STRATEGY
+
     @population = create_population
     @new_population = []
     @costs = create_costs
@@ -37,13 +48,14 @@ class CitiesCollection
     cities_array.each_with_index.map{|i,index| cities_array[index+1] ? [i, cities_array[index+1]] : [i, cities_array[0]]}.map{|i,j| costs[i][j]}.sum
   end
 
-  def make_generations(generations_count = 100)
+  def make_generations
+    present_costs if @present_costs
     puts 'starting generation:'
     present_population_with_costs
 
     generations_count.times do
       cross
-      mutation(mutation_rate: 0.05)
+      mutation
       tournament_selection
     end
 
@@ -55,11 +67,14 @@ class CitiesCollection
   end
 
   def cross
-    cities_pairs = population.in_groups_of(2).map(&:compact)
     new_population = []
-    cities_pairs.each do |cities_pair|
-      new_population << single_point_cross(cities_pair).flatten
+    population.in_groups_of(2).map(&:compact).each do |cities_pair|
+      new_population << cross_strategy(cities_pair).flatten
     end
+  end
+
+  def cross_strategy(cities_pair)
+    send(cross_strategy_method, cities_pair)
   end
 
   def single_point_cross(cities_pair)
@@ -73,13 +88,13 @@ class CitiesCollection
     @new_population << city_d
   end
 
-  def mutation(mutation_rate: 0.1)
-    genotypes_to_change = (N * N * mutation_rate).to_i
+  def mutation
+    genotypes_to_change = (number_of_cities * number_of_cities * mutation_rate).to_i
     genotypes_to_change.times do
       selected_population = [population, new_population][rand(2)]
-      individual = rand(100)
-      genotype = rand(100)
-      selected_population[individual][genotype] = rand(N)
+      individual = rand(number_of_cities)
+      genotype = rand(number_of_cities)
+      selected_population[individual][genotype] = rand(number_of_cities)
     end
   end
 
@@ -109,7 +124,6 @@ class CitiesCollection
   def present_population_with_costs
     costs = []
     orders = []
-    puts 'individuals with costs'
     population.each_with_index do |individual, index|
       cost = calculate_cost(individual)
       order = find_traversing_order_for(index)
@@ -119,10 +133,10 @@ class CitiesCollection
     end
 
     best_order_index = costs.each_with_index.select{ |cost, index| cost == costs.min }.flatten.last
-    puts 'the lower traversing cost:' + costs.min.to_s + "(#{orders[best_order_index]})"
+    puts 'the lower traversing cost: ' + costs.min.to_s + " #{orders[best_order_index]}"
   end
 
-  def present_cost_table
+  def present_costs
     puts costs.to_s
   end
 
@@ -132,14 +146,21 @@ class CitiesCollection
   end
 
   private
-  attr_reader :population, :costs, :new_population, :travarsing_costs_history
+  attr_reader :population,
+              :costs,
+              :new_population,
+              :travarsing_costs_history,
+              :number_of_cities,
+              :mutation_rate,
+              :generations_count,
+              :cross_strategy_method
 
   def create_population
     [].tap do |array|
-      (0...N).each do
+      (0...number_of_cities).each do
         genotypes = []
-        (0...N).each do
-          genotypes << rand(N)
+        (0...number_of_cities).each do
+          genotypes << rand(number_of_cities)
         end
         array << genotypes
       end
@@ -147,7 +168,7 @@ class CitiesCollection
   end
 
   def create_costs
-    costs = (0...N).map{|i| []}
+    costs = (0...number_of_cities).map{|i| []}
     population.each_with_index do |from, i|
       population.each_with_index do |to, j|
         if i!= j
@@ -165,5 +186,5 @@ class CitiesCollection
   end
 end
 
-cities = CitiesCollection.new
+cities = TravellingSalesmanProblem.new
 cities.make_generations
