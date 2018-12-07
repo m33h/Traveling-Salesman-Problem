@@ -100,6 +100,7 @@ class TravellingSalesmanProblem
 
   def tournament_selection
     cities_pairs = (@new_population + @population).shuffle.in_groups_of(2).map(&:compact)
+
     winning_cities = []
     cities_pairs.each do |cities_pair|
       if cities_pair.length == 1
@@ -125,8 +126,8 @@ class TravellingSalesmanProblem
     costs = []
     orders = []
     population.each_with_index do |individual, index|
-      cost = calculate_cost(individual)
       order = find_traversing_order_for(index)
+      cost = calculate_cost(order)
       costs << cost
       orders << order
       travarsing_costs_history << costs.min
