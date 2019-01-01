@@ -1,17 +1,11 @@
 require 'active_support/all'
 require 'pry'
 
-# Travelling salesman problem
-#
-# algorithm description
-# given 100 cities
-# each city has 100-elements table with randomly generated numbers from range [1,255]
-# for i in (1..255)
-# find cities with i element and save its indexes
-# these elements creates path for salesman to visit all cities
-#
-#
-
+# @author Michał Tarsa <michal.tarsa1@gmail.com>
+# @note Travelling salesman problem solved using evolutionary algorithm
+# @note Default script execution parameters are stored as constants
+#   these values can be changed by using parameters: [-n N] [-m MUTATION_RATE] [-g GENERATIONS_COUNT]
+#   costs table can be printed using -c option
 class TravellingSalesmanProblem
   N = 100
   MUTATION_RATE = 0.05
@@ -19,6 +13,7 @@ class TravellingSalesmanProblem
   DEFAULT_CROSS_STRATEGY = :single_point_cross
   AVAILABLE_CROSS_STRATEGIES = [:single_point_cross]
 
+  # @note read and parse input parameters, create needed instance variables
   def initialize
     params = ARGV.in_groups_of(2).to_h
     @number_of_cities = Integer(params.dig('-n') || N)
@@ -30,9 +25,15 @@ class TravellingSalesmanProblem
     @population = create_population
     @new_population = []
     @costs = create_costs
-    @travarsing_costs_history = []
+    @traversing_costs_history = []
   end
 
+  # find traversing order for city
+  # @param individual_index [Integer] is a index of a city
+  # @return [Array] of cities corresponding for an order
+  # @note each city has 100-elements table with randomly generated numbers from range [1,255]
+  #   find cities with i element and save its indexes
+  #   these elements creates path for salesman to visit all cities
   def find_traversing_order_for(individual_index)
     order = []
     individual = population[individual_index]
@@ -44,10 +45,14 @@ class TravellingSalesmanProblem
     order.flatten
   end
 
+  # @param cities_array [Array]
+  # @return cost of traversing all cities as a cycle
   def calculate_cost(cities_array)
     cities_array.each_with_index.map{|i,index| cities_array[index+1] ? [i, cities_array[index+1]] : [i, cities_array[0]]}.map{|i,j| costs[i][j]}.sum
   end
 
+  # @note run population cross, mutation and tournament selection for each generation
+  # @return information about evolutionary process and results summary
   def make_generations
     present_costs if @present_costs
     puts 'starting generation:'
@@ -59,13 +64,12 @@ class TravellingSalesmanProblem
       tournament_selection
     end
 
-    puts 'last generation:'
-    present_population_with_costs
-
     puts 'results:'
     present_results
   end
 
+  # @note Crossing the population individuals with selected strategy
+  # @return [Array] New population of traversing orders
   def cross
     new_population = []
     population.in_groups_of(2).map(&:compact).each do |cities_pair|
@@ -73,10 +77,9 @@ class TravellingSalesmanProblem
     end
   end
 
-  def cross_strategy(cities_pair)
-    send(cross_strategy_method, cities_pair)
-  end
-
+  # @note Implementation of single point crossing strategy
+  # @param [Array] cities_pair that are both arrays of cities traversing order
+  # @return [Array] New population
   def single_point_cross(cities_pair)
     len = cities_pair.first.length
     selection_point = rand(len - 1)
@@ -88,6 +91,8 @@ class TravellingSalesmanProblem
     @new_population << city_d
   end
 
+  # @note Implementation of mutation process
+  #   given mutation rate changes randomly corresponding amount of genotypes
   def mutation
     genotypes_to_change = (number_of_cities * number_of_cities * mutation_rate).to_i
     genotypes_to_change.times do
@@ -98,6 +103,10 @@ class TravellingSalesmanProblem
     end
   end
 
+  # @note Implementation of tournament selection
+  #   old population and a new population are selected randomly in pairs
+  #   better solution from each pair will be selected to new generation
+  # @return [Array] of cities have won competitions
   def tournament_selection
     cities_pairs = (@new_population + @population).shuffle.in_groups_of(2).map(&:compact)
 
@@ -106,8 +115,8 @@ class TravellingSalesmanProblem
       if cities_pair.length == 1
         winning_cities << cities_pair.first
       else
-        best_candidate = (calculate_cost(cities_pair.first) < calculate_cost(cities_pair.last)) ? cities_pair.first : cities_pair.last
-        winning_cities << best_candidate
+        winning_candidate = (calculate_cost(cities_pair.first) < calculate_cost(cities_pair.last)) ? cities_pair.first : cities_pair.last
+        winning_cities << winning_candidate if winning_cities.last.present? && calculate_cost(winning_candidate) < calculate_cost(winning_cities.last)
       end
     end
 
@@ -115,42 +124,11 @@ class TravellingSalesmanProblem
     @new_population = []
   end
 
-  def present_population
-    puts 'cities'
-    population.each_with_index do |individual, index|
-      puts "#{index}: #{individual}"
-    end
-  end
-
-  def present_population_with_costs
-    costs = []
-    orders = []
-    population.each_with_index do |individual, index|
-      order = find_traversing_order_for(index)
-      cost = calculate_cost(order)
-      costs << cost
-      orders << order
-      travarsing_costs_history << costs.min
-    end
-
-    best_order_index = costs.each_with_index.select{ |cost, index| cost == costs.min }.flatten.last
-    puts 'the lower traversing cost: ' + costs.min.to_s + " #{orders[best_order_index]}"
-  end
-
-  def present_costs
-    puts costs.to_s
-  end
-
-  def present_results
-    puts 'lowest cost changes:' + travarsing_costs_history.uniq.to_s
-    puts "#{(100 * (travarsing_costs_history.max - travarsing_costs_history.min) / travarsing_costs_history.max.to_f).round(2)}% better result"
-  end
-
   private
   attr_reader :population,
               :costs,
               :new_population,
-              :travarsing_costs_history,
+              :traversing_costs_history,
               :number_of_cities,
               :mutation_rate,
               :generations_count,
@@ -184,6 +162,44 @@ class TravellingSalesmanProblem
     end
 
     costs
+  end
+
+  def cross_strategy(cities_pair)
+    send(cross_strategy_method, cities_pair)
+  end
+
+  def present_population
+    puts 'cities'
+    population.each_with_index do |individual, index|
+      puts "#{index}: #{individual}"
+    end
+  end
+
+  def present_population_with_costs
+    costs = []
+    orders = []
+    population.each_with_index do |individual, index|
+      order = find_traversing_order_for(index)
+      cost = calculate_cost(order)
+
+      if costs.empty? || cost < costs.min
+        costs << cost
+        orders << order
+        traversing_costs_history << costs.min
+      end
+    end
+
+    best_order_index = costs.each_with_index.select{ |cost, index| cost == costs.min }.flatten.last
+    puts "The lower traversing cost: #{costs.min} #{orders[best_order_index]}"
+  end
+
+  def present_costs
+    costs.map{|cost| puts cost.to_s }
+  end
+
+  def present_results
+    puts 'lowest cost changes:' + traversing_costs_history.to_s
+    puts "#{(100 * (traversing_costs_history.max - traversing_costs_history.min) / traversing_costs_history.max.to_f).round(2)}% better result"
   end
 end
 
